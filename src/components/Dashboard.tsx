@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Line } from 'react-chartjs-2';
 import { restClient } from '@polygon.io/client-js';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import 'chart.js/auto'; // Required for Chart.js to work in TypeScript
 import './Dashboard.css';
-
 const apiKey = process.env.REACT_APP_POLYGON_API_KEY;
 const polygonClient = restClient(apiKey);
 
@@ -29,118 +30,131 @@ const Dashboard: React.FC = () => {
   const [dowData, setDowData] = useState<Dataset | null>(null);
   const [nasdaqData, setNasdaqData] = useState<Dataset | null>(null);
 
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+
   // Helper function to format data for charts
-  const formatDataForChart = (data: ChartData[], label: string): Dataset => {
+const formatDataForChart = (data: ChartData[], label: string): Dataset => {
     return {
-      labels: data.map((item) => item.date),
-      datasets: [
-        {
-          label: label,
-          data: data.map((item) => item.value),
-          borderColor: 'rgba(75, 192, 192, 1)',
-          fill: false,
-        },
-      ],
+        labels: data.map((item) => item?.date || ''),      
+        datasets: [
+            {
+                label: label,
+                data: data.map((item) => item?.value || 0),
+                borderColor: 'rgba(75, 192, 192, 1)',
+                fill: false,
+            },
+        ],
     };
+};
+
+  // Format dates to YYYY-MM-DD for API calls
+  const formatDate = (date: Date | null): string => {
+    if (!date) return '';
+    return date.toISOString().split('T')[0];
   };
 
-  // Fetch 2Y/5Y Treasury Spread data
-  const fetchTreasurySpread = async () => {
-    try {
-        // Fetch 2-year and 5-year Treasury data using Polygon.io
-        const twoYear = await polygonClient.stocks.aggregates('BIL', 1, 'day', '2020-01-01', '2024-12-31');
-        const fiveYear = await polygonClient.stocks.aggregates('IEI', 1, 'day', '2020-01-01', '2024-12-31');
-        
-        const twoYrResults = twoYear.results;
-        const fiveYrResults = fiveYear.results;
-        if (!twoYrResults?.length || !fiveYrResults?.length) {
-          throw new Error('No data found');
+  // Function to safely get results from API response and check for null/undefined
+  const getSafeResults = (response: any): any[] => {
+    return response && response.results ? response.results : [];
+  };
+const API_CALL_LIMIT = 5;  // Maximum number of API calls allowed per minute
+let apiCallCount = 0;      // Counter to track API calls
+let queue: (() => void)[] = [];  // Queue to hold pending API calls
+
+// Function to reset the API call count after 60 seconds
+const resetApiCallCount = () => {
+  apiCallCount = 0;
+  if (queue.length > 0) {
+    // Process any pending API calls from the queue
+    queue.forEach(call => call());
+    queue = [];
+  }
+};
+
+// Set up the interval to reset the API call counter every 60 seconds
+setInterval(resetApiCallCount, 60000);
+
+// Generalized fetch function to handle different symbols and datasets
+const fetchData = async (symbol: string, label: string): Promise<Dataset | null> => {
+  return new Promise((resolve, reject) => {
+    const makeApiCall = async () => {
+      if (apiCallCount < API_CALL_LIMIT) {
+        // Increment the counter before making the API call
+        apiCallCount++;
+        try {
+          const formattedStartDate = formatDate(startDate);
+          const formattedEndDate = formatDate(endDate);
+
+          // Fetch data for the given symbol using the polygon.io client
+          const response = await polygonClient.stocks.aggregates(symbol, 1, 'day', formattedStartDate, formattedEndDate);
+          const results = getSafeResults(response);
+
+          if (results.length) {
+            const data = results.map((item: any) => ({
+              date: new Date(item.t).toLocaleDateString(),
+              value: item.c,
+            }));
+
+            // Format the data for charting and resolve the promise
+            resolve(formatDataForChart(data, label));
+          } else {
+            resolve(null);  // No data available
+          }
+        } catch (error) {
+          console.error(`Error fetching data for ${symbol}:`, error);
+          reject(error);
         }
-        
-      // Compute spread
-      const spread = twoYrResults.map((item: any, index: number) => ({
-        date: new Date(item.t).toLocaleDateString(),
-        value: fiveYrResults[index] && (item.c - (fiveYrResults[index].c || 0) ),
-      }));
+      } else {
+        // Queue the API call if the rate limit is reached
+        queue.push(makeApiCall);
+      }
+    };
 
-      setTreasurySpreadData(formatDataForChart(spread, '2Y/5Y Treasury Spread'));
-    } catch (error) {
-      console.error('Error fetching Treasury spread data:', error);
-    }
-  };
+    // Make the API call (or queue it if the limit is reached)
+    makeApiCall();
+  });
+};
 
-  // Fetch S&P 500 data
-  const fetchSp500Data = async () => {
-    try {
-      const sp500 = await polygonClient.stocks.aggregates('SPY', 1, 'day', '2020-01-01', '2024-12-31');
-      const results = sp500.results;
+// Example usage for all symbols
+const fetchAllData = async () => {
+  try {
+    const treasurySpreadData = await fetchData('BIL', 'BIL/IEI Spread');
+    const sp500Data = await fetchData('SPY', 'S&P 500');
+    const dowData = await fetchData('DIA', 'DOW');
+    const nasdaqData = await fetchData('QQQ', 'Nasdaq');
 
-      const data = results && results.map((item: any) => ({
-        date: new Date(item.t).toLocaleDateString(),
-        value: item.c,
-      }));
+    // Set the state for each dataset
+    setTreasurySpreadData(treasurySpreadData);
+    setSp500Data(sp500Data);
+    setDowData(dowData);
+    setNasdaqData(nasdaqData);
+  } catch (error) {
+    console.error('Error fetching all data:', error);
+  }
+};
 
-      data && setSp500Data(formatDataForChart(data, 'S&P 500'));
-    } catch (error) {
-      console.error('Error fetching S&P 500 data:', error);
-    }
-  };
+useEffect(() => {
+  fetchAllData(); // Fetch all data on mount or when date range changes
+}, [startDate, endDate]);
 
-  // Fetch DOW data
-  const fetchDowData = async () => {
-    try {
-      const dow = await polygonClient.stocks.aggregates('DIA', 1, 'day', '2020-01-01', '2024-12-31');
-      const results = dow.results;
-    
-      const data = results && results.map((item: any) => ({
-        date: new Date(item.t).toLocaleDateString(),
-        value: item.c,
-      }));
-
-      data && setDowData(formatDataForChart(data, 'DOW'));
-    } catch (error) {
-      console.error('Error fetching DOW data:', error);
-    }
-  };
-
-  // Fetch Nasdaq data
-  const fetchNasdaqData = async () => {
-    try {
-      const nasdaq = await polygonClient.stocks.aggregates('QQQ', 1, 'day', '2020-01-01', '2024-12-31');
-        const results = nasdaq.results;
-    
-      const data =results && results.map((item: any) => ({
-        date: new Date(item.t).toLocaleDateString(),
-        value: item.c,
-      }));
-
-      data && setNasdaqData(formatDataForChart(data, 'Nasdaq'));
-    } catch (error) {
-      console.error('Error fetching Nasdaq data:', error);
-    }
-  };
-
-  useEffect(() => {
-    // Fetch all data on component mount
-    fetchTreasurySpread();
-    fetchSp500Data();
-    fetchDowData();
-    fetchNasdaqData();
-
-    // Set interval to update data every minute
-    const interval = setInterval(() => {
-      fetchTreasurySpread();
-      fetchSp500Data();
-      fetchDowData();
-      fetchNasdaqData();
-    }, 60000); // 1-minute intervals for real-time updates
-
-    return () => clearInterval(interval); // Cleanup on unmount
-  }, []);
 
   return (
     <div>
       <h1>Economic Dashboard</h1>
+
+      <div className="date-picker-container">
+        <label>Select Start Date: </label>
+        <DatePicker 
+            selected={startDate} 
+            onChange={(date: Date | null) => setStartDate(date)} 
+        />
+        <label>Select End Date: </label>
+        <DatePicker 
+            selected={endDate} 
+            onChange={(date: Date | null) => setEndDate(date)} 
+        />
+      </div>
 
       <div className="chart-container">
         <h2>2Y/5Y Treasury Spread</h2>
