@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import SectorBarChart from './SectorBarChart';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import ChartComponent from './ChartComponent';
@@ -11,6 +12,12 @@ type ChartParameter = {
     startDate: Date;
     endDate: Date;
 };
+  // Style for the chart container
+  const chartContainerStyle: React.CSSProperties = {
+    width: '15%',
+    alignContent: 'start',
+    margin: '0 auto', // Center the chart horizontally
+  };
 const Dashboard: React.FC = () => {
   const [startDate, setStartDate] = useState<Date | null>(new Date());
   const [endDate, setEndDate] = useState<Date | null>(new Date());
@@ -31,6 +38,9 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
       </div>
+      <div >
+      <SectorBarChart />
+    </div>
       {/* Use ChartComponent for each chart */}
       {startDate && endDate && (
         <div className="chart-grid-container">
@@ -49,8 +59,7 @@ const Dashboard: React.FC = () => {
                 break;
             }
            
-
-            const chartParameters: ChartParameter[] = [
+            const defaultParameters: ChartParameter[] = [
                 { symbol: 'IEI', title: '10 Year Treasury', label: 'IEI', startDate, endDate },
                 { symbol: 'TLT', title: '20 Year Treasury', label: 'TLT', startDate, endDate },
                 { symbol: 'DOW', title: 'DOW', label: 'DOW', startDate, endDate },
@@ -58,6 +67,26 @@ const Dashboard: React.FC = () => {
                 { symbol: 'SPY', title: 'S&P 500', label: 'SPX', startDate, endDate },
             ];
 
+            const banks: ChartParameter[] = [
+                { symbol: 'JPM', title: 'JPMorgan Chase', label: 'JPM', startDate, endDate },
+                { symbol: 'BAC', title: 'Bank of America', label: 'BAC', startDate, endDate },
+                { symbol: 'FITB', title: 'Fifth Third Bank', label: 'FITB', startDate, endDate },
+                { symbol: 'INTR', title: 'Interbank', label: 'INTR', startDate, endDate },
+                { symbol: 'WFC', title: 'Wells Fargo', label: 'WFC', startDate, endDate },
+            ];
+
+            const semiconductors: ChartParameter[] = [
+                { symbol: 'NVDA', title: 'NVIDIA', label: 'NVDA', startDate, endDate },
+                { symbol: 'AMD', title: 'Advanced Micro Devices', label: 'AMD', startDate, endDate },
+                { symbol: 'INTC', title: 'Intel', label: 'INTC', startDate, endDate },
+                { symbol: 'TSM', title: 'Taiwan Semiconductor', label: 'TSM', startDate, endDate },
+                { symbol: 'ASML', title: 'ASML Holding', label: 'ASML', startDate, endDate },
+            ];
+
+            const chartParameters: ChartParameter[] = [...defaultParameters, ...banks, ...semiconductors];
+            
+
+   
             return (
                 <React.Fragment key={duration}>
                     {chartParameters.map(({ symbol, title, label }) => (
