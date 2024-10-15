@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchGDP, fetchUnemploymentRate, fetchCPI, calculateInflationFromCPI } from './cpiUtils'; // Assume these functions are defined to fetch data
+import { fetchGDP, fetchUnemploymentRate, calculateInflationFromCPI } from './cpiUtils'; // Assume these functions are defined to fetch data
 
 const MacroEconomicFactors: React.FC = () => {
   const [gdp, setGDP] = useState<number | null>(null);
