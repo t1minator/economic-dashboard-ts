@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import SectorBarChart from './SectorBarChart';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import ChartComponent from './ChartComponent';
+import { calculateInflationFromCPI, fetchRiskFreeRate } from './cpiUtils'; 
 import './Dashboard.css';
+import MacroEconomicFactors from './MacroEconomicFactors';
+
 
 type ChartParameter = {
     symbol: string;
@@ -21,12 +24,38 @@ type ChartParameter = {
 const Dashboard: React.FC = () => {
   const [startDate, setStartDate] = useState<Date | null>(new Date());
   const [endDate, setEndDate] = useState<Date | null>(new Date());
+  const [inflationRate, setInflationRate] = useState<number | null>(null);
+  const [riskFreeRate, setRiskFreeRate] = useState<number | null>(null);
+
+  useEffect(() => {
+    showInflation();
+  },[]);
+
+  const showInflation = async () => {
+    const inflationRate = await calculateInflationFromCPI();
+  
+    if (inflationRate !== null) {
+      setInflationRate(inflationRate);      
+    } else {
+      console.log('Could not calculate inflation.');
+    }
+    // Fetch and display the risk-free rate
+    const riskFreeRate = await fetchRiskFreeRate();
+    
+
+    if (riskFreeRate !== null) {
+      setRiskFreeRate(riskFreeRate);
+      console.log(`The current risk-free rate (10-year Treasury yield) is: ${riskFreeRate.toFixed(2)}%`);
+    } else {
+      console.log('Could not fetch the risk-free rate.');
+    }
+  };
 
   return (
     <div className="dashboard-container">
         <div className="header-container">
         <h1>Economic Dashboard</h1>
-
+       
         <div className="date-picker-container">
             <div style={{ padding: '10px' }}>
               <label>Select Start Date: </label>
@@ -38,8 +67,19 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
       </div>
+
       <div >
-      <SectorBarChart />
+      <div className="chart-grid-container">
+        <div style={chartContainerStyle}>
+          <MacroEconomicFactors /> 
+          </div>
+        <div className="inflation-risk-container">
+        <h4>Risk-Free Rate {riskFreeRate ? riskFreeRate.toFixed(2) : 'Loading...'}%</h4>
+        <h4>Inflation Rate: {inflationRate ? inflationRate.toFixed(2) : 'Loading...'}%</h4>  
+        <SectorBarChart />
+        </div>
+        
+      </div>
     </div>
       {/* Use ChartComponent for each chart */}
       {startDate && endDate && (

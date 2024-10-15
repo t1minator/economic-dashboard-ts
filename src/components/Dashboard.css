@@ -28,3 +28,12 @@
     background-position: center;
     min-height: 10vh; /* Ensure it covers the full viewport height */
 }
+
+.inflation-risk-container { 
+    display: 'flex';
+    flex-direction: column; 
+    justify-content: center;
+    align-items: center;
+    text-align: right;
+    height: '100%' 
+  }
